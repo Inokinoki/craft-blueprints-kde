@@ -58,6 +58,23 @@ class Package(CMakePackageBase):
             if not utils.copyFile(os.path.join(libPath, "libexec", "kdeconnectd"), 
                 os.path.join(appPath, "Contents", "MacOS"), linkOnly=False):
                 return False
+            
+            # Fix all executable in Contents/MacOS except kdeconnect-indicator
+            for executable in ["kdeconnect-cli", "kdeconnectd"]:
+                fileToFix = os.path.join(appPath, "Contents", "MacOS", executable)
+                for oldRef in utils.getLibraryDeps(fileToFix):
+                    newRef = None
+                    basename = os.path.basename(oldRef)
+                    if f"{basename}.framework" in oldRef:
+                        # Update dylib in framework
+                        newRef = "@executable_path/../Frameworks/" + oldRef[oldRef.find(f"{basename}.framework"):]
+                    else:
+                        newRef = "@executable_path/../Frameworks/" + basename
+                    with utils.makeWritable(fileToFix):
+                        if not utils.system(["install_name_tool", "-change", oldRef, newRef, str(fileToFix)], logCommand=False):
+                            CraftCore.log.error("%s: failed to update library dependency path from '%s' to '%s'",
+                                                fileToFix, oldRef, newRef)
+                            return False
         
         return utils.mergeTree(os.path.join(archiveDir, "lib/qca-qt5"), 
             pluginPath if CraftCore.compiler.isMacOS else binPath)
