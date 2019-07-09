@@ -34,7 +34,10 @@ class subinfo(info.infoclass):
         # While KDNSSD is nice, it doesn't work on macOS, so we cannot have kio-extras there
         if not CraftCore.compiler.isMacOS:
             self.runtimeDependencies["kde/kdenetwork/kio-extras"] = None
-
+        else:
+            self.runtimeDependencies["kde/frameworks/tier3/kdewebkit"] = None
+            self.runtimeDependencies["libs/ffmpeg"] = None
+            self.runtimeDependencies["libs/webp"] = None
 
 from Package.CMakePackageBase import *
 
@@ -53,3 +56,18 @@ class Package(CMakePackageBase):
         self.ignoredPackages.append("binary/mysql")
 
         return TypePackager.createPackage(self)
+
+    def preArchive(self):
+        archiveDir = self.archiveDir()
+        libPath = os.path.join(archiveDir, "lib")
+
+        if CraftCore.compiler.isMacOS:
+            # Move kioslave to package
+            defines = self.setDefaults(self.defines)
+            appPath = self.getMacAppPath(defines)
+            
+            if not utils.copyFile(os.path.join(libPath, "libexec", "kf5", 'kioslave'), 
+                os.path.join(appPath, "Contents", "MacOS"), linkOnly=False):
+                return False
+        
+        return True
